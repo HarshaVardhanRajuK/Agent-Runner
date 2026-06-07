@@ -4,7 +4,6 @@
   "description": "Autonomous coding agent for VS Code",
   "version": "0.0.1",
   "private": true,
-  "type": "module",
   "publisher": "agent-runner",
   "engines": {
     "vscode": "^1.95.0"
@@ -51,7 +50,7 @@
     }
   },
   "scripts": {
-    "build": "tsc --build && node scripts/build-webview.mjs",
+    "build": "node scripts/build-extension.mjs && node scripts/build-webview.mjs",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist out *.tsbuildinfo",
     "package": "vsce package --no-dependencies"
