@@ -1,0 +1,24 @@
+{
+  "name": "agent-runner",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@11.1.2",
+  "description": "Autonomous coding agent runtime",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.20.0",
+    "@typescript-eslint/parser": "^8.20.0",
+    "esbuild": "^0.28.0",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "turbo": "^2.9.16",
+    "typescript": "^5.7.3"
+  }
+}

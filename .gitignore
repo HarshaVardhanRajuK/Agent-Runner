@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output — all packages and clients
+dist/
+out/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Turborepo cache — root and all packages
+.turbo/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# VS Code extension package
+*.vsix
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/settings.json
+.idea/

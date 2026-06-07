@@ -1,0 +1,26 @@
+{
+  "name": "@agent-runner/providers",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@agent-runner/shared": "workspace:*",
+    "@anthropic-ai/sdk": "^0.40.0"
+  },
+  "devDependencies": {
+    "typescript": "*"
+  }
+}

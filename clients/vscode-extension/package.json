@@ -1,0 +1,72 @@
+{
+  "name": "agent-runner",
+  "displayName": "Agent Runner",
+  "description": "Autonomous coding agent for VS Code",
+  "version": "0.0.1",
+  "private": true,
+  "publisher": "agent-runner",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "agent-runner.openChat",
+        "title": "Agent Runner: Open Chat"
+      },
+      {
+        "command": "agent-runner.newSession",
+        "title": "Agent Runner: New Session"
+      }
+    ],
+    "configuration": {
+      "title": "Agent Runner",
+      "properties": {
+        "agent-runner.anthropicApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic API key for Claude models",
+          "markdownDescription": "Your Anthropic API key. Get one at https://console.anthropic.com"
+        },
+        "agent-runner.model": {
+          "type": "string",
+          "default": "claude-sonnet-4-5",
+          "enum": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "description": "Claude model to use"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc --build && node scripts/build-webview.mjs",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist out *.tsbuildinfo",
+    "package": "vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@agent-runner/context": "workspace:*",
+    "@agent-runner/providers": "workspace:*",
+    "@agent-runner/runtime": "workspace:*",
+    "@agent-runner/shared": "workspace:*",
+    "@agent-runner/storage": "workspace:*",
+    "@agent-runner/tools": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.95.0",
+    "esbuild": "^0.28.0",
+    "typescript": "*"
+  }
+}
