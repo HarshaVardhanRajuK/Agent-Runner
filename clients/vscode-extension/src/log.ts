@@ -1,37 +1,36 @@
 import * as vscode from 'vscode'
 
-let _channel: vscode.OutputChannel | undefined
+// LogOutputChannel gives structured levels + filtering in the Output panel
+// dropdown. VS Code adds timestamps automatically — no manual prefix needed.
+let _channel: vscode.LogOutputChannel | undefined
 
-function channel(): vscode.OutputChannel {
+function channel(): vscode.LogOutputChannel {
   if (!_channel) {
-    _channel = vscode.window.createOutputChannel('Agent Runner')
+    _channel = vscode.window.createOutputChannel('Agent Runner', { log: true })
   }
   return _channel
 }
 
-const prefix = (): string => {
-  const d = new Date()
-  return d.toLocaleTimeString('en-US', { hour12: false })
-}
-
 export const log = {
+  trace(msg: string): void {
+    channel().trace(msg)
+  },
+
+  debug(msg: string): void {
+    channel().debug(msg)
+  },
+
   info(msg: string): void {
-    const line = `[${prefix()}] [INFO] ${msg}`
-    console.log(line)
-    channel().appendLine(line)
+    channel().info(msg)
   },
 
   warn(msg: string): void {
-    const line = `[${prefix()}] [WARN] ${msg}`
-    console.warn(line)
-    channel().appendLine(line)
+    channel().warn(msg)
   },
 
   error(msg: string, err?: unknown): void {
-    const detail = err instanceof Error ? `\n  ${err.stack ?? err.message}` : ''
-    const line = `[${prefix()}] [ERROR] ${msg}${detail}`
-    console.error(line)
-    channel().appendLine(line)
+    const detail = err instanceof Error ? err.stack ?? err.message : String(err ?? '')
+    channel().error(detail ? `${msg}\n  ${detail}` : msg)
   },
 
   show(): void {
