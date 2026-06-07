@@ -4,8 +4,7 @@
     "module": "CommonJS",
     "moduleResolution": "Node",
     "outDir": "./dist",
-    "rootDir": "./src",
-    "lib": ["ES2022"]
+    "rootDir": "./src"
   },
   "include": ["src"],
   "exclude": ["src/webview"]

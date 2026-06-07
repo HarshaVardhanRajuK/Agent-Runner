@@ -1,10 +1,10 @@
 import * as vscode from 'vscode'
-import * as path from 'node:path'
 import { run, SessionManager } from '@agent-runner/runtime'
 import { AnthropicProvider } from '@agent-runner/providers'
 import { createDefaultRegistry } from '@agent-runner/tools'
-import { getDb, SessionStore } from '@agent-runner/storage'
+import { initStore, SessionStore } from '@agent-runner/storage'
 import { VsCodeAdapter } from '../adapter/VsCodeAdapter.js'
+import { log } from '../log.js'
 import type { WebviewMessage, ExtensionMessage } from '@agent-runner/shared'
 
 interface CreateOptions {
@@ -31,14 +31,17 @@ export class ChatPanel {
     this.#context = context
 
     this.#panel.onDidDispose(() => {
+      log.info('ChatPanel webview disposed')
       ChatPanel.#current = undefined
     })
 
     this.#panel.webview.onDidReceiveMessage((msg: WebviewMessage) => {
+      log.info(`Received webview message: ${msg.type}`)
       void this.#handleWebviewMessage(msg)
     })
 
     this.#panel.webview.html = this.#getHtml()
+    log.info('ChatPanel constructed')
   }
 
   static createOrShow(
@@ -50,6 +53,7 @@ export class ChatPanel {
       : undefined
 
     if (ChatPanel.#current) {
+      log.info('Revealing existing ChatPanel')
       ChatPanel.#current.#panel.reveal(column)
       if (options.newSession) {
         ChatPanel.#current.#resetSession()
@@ -57,6 +61,7 @@ export class ChatPanel {
       return
     }
 
+    log.info('Creating new ChatPanel webview')
     const panel = vscode.window.createWebviewPanel(
       'agentRunnerChat',
       'Agent Runner',
@@ -85,7 +90,11 @@ export class ChatPanel {
 
   #resetSession(): void {
     const workspaceRoot = this.#getWorkspaceRoot()
-    if (!workspaceRoot) return
+    if (!workspaceRoot) {
+      log.warn('resetSession: no workspace root')
+      return
+    }
+    log.info(`Resetting session for ${workspaceRoot}`)
     const store = this.#getSessionStore()
     store.delete(workspaceRoot)
     this.#sessionManager = undefined
@@ -96,17 +105,26 @@ export class ChatPanel {
     if (msg.type === 'ready') {
       const store = this.#getSessionStore()
       const workspaceRoot = this.#getWorkspaceRoot()
-      if (!workspaceRoot) return
+      if (!workspaceRoot) {
+        log.warn('handleWebviewMessage(ready): no workspace root')
+        return
+      }
 
+      log.info(`Webview ready — loading session for ${workspaceRoot}`)
       const sm = new SessionManager(store)
       const session = sm.loadOrCreate(workspaceRoot)
       this.#sessionManager = sm
       this.#send({ type: 'session_loaded', taskCount: session.totalTasks })
+      log.info(`Session loaded with ${session.totalTasks} existing task(s)`)
       return
     }
 
     if (msg.type === 'user_message') {
-      if (this.#isRunning) return // ignore while a task is running
+      if (this.#isRunning) {
+        log.warn('Ignoring user_message — task already running')
+        return
+      }
+      log.info(`Running task (${msg.text.length} chars)`)
       await this.#runTask(msg.text)
     }
   }
@@ -114,6 +132,7 @@ export class ChatPanel {
   async #runTask(task: string): Promise<void> {
     const workspaceRoot = this.#getWorkspaceRoot()
     if (!workspaceRoot) {
+      log.warn('runTask: no workspace folder open')
       this.#send({ type: 'error', message: 'No workspace folder open.' })
       return
     }
@@ -123,6 +142,7 @@ export class ChatPanel {
     const model = config.get<string>('model') ?? 'claude-sonnet-4-5'
 
     if (!apiKey) {
+      log.warn('runTask: API key not configured')
       this.#send({
         type: 'error',
         message:
@@ -131,6 +151,7 @@ export class ChatPanel {
       return
     }
 
+    log.info(`Starting task with model=${model}`)
     const provider = new AnthropicProvider(apiKey, model, SYSTEM_PROMPT)
     const adapter = new VsCodeAdapter()
     const tools = createDefaultRegistry(adapter, workspaceRoot)
@@ -152,6 +173,13 @@ export class ChatPanel {
       })) {
         this.#send({ type: 'runtime_event', event })
       }
+      log.info('Task completed successfully')
+    } catch (err) {
+      log.error('Task failed with error', err)
+      this.#send({
+        type: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      })
     } finally {
       this.#isRunning = false
     }
@@ -167,8 +195,8 @@ export class ChatPanel {
 
   #getSessionStore(): SessionStore {
     const storagePath = this.#context.globalStorageUri.fsPath
-    const db = getDb(storagePath)
-    return new SessionStore(db)
+    initStore(storagePath)
+    return new SessionStore()
   }
 
   #getHtml(): string {

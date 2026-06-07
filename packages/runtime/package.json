@@ -8,6 +8,7 @@
   "exports": {
     ".": {
       "import": "./dist/index.js",
+      "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
   },
@@ -17,12 +18,13 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@agent-runner/shared": "workspace:*",
     "@agent-runner/context": "workspace:*",
-    "@agent-runner/tools": "workspace:*",
-    "@agent-runner/storage": "workspace:*"
+    "@agent-runner/shared": "workspace:*",
+    "@agent-runner/storage": "workspace:*",
+    "@agent-runner/tools": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^22.19.20",
     "typescript": "*"
   }
 }

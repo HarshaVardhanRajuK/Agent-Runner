@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/storage" },
+    { "path": "./packages/providers" },
+    { "path": "./packages/tools" },
+    { "path": "./packages/context" },
+    { "path": "./packages/runtime" },
+    { "path": "./clients/vscode-extension" }
+  ]
+}
