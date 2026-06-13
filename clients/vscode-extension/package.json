@@ -36,15 +36,40 @@
           "description": "Anthropic API key for Claude models",
           "markdownDescription": "Your Anthropic API key. Get one at https://console.anthropic.com"
         },
+        "agent-runner.deepseekApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "DeepSeek API key",
+          "markdownDescription": "Your DeepSeek API key. Get one at https://platform.deepseek.com"
+        },
+        "agent-runner.minimaxApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "MiniMax API key",
+          "markdownDescription": "Your MiniMax API key. Get one at https://platform.minimaxi.com"
+        },
         "agent-runner.model": {
           "type": "string",
           "default": "claude-sonnet-4-5",
           "enum": [
             "claude-sonnet-4-5",
             "claude-opus-4-5",
-            "claude-haiku-4-5"
+            "claude-haiku-4-5",
+            "deepseek-chat",
+            "deepseek-reasoner",
+            "MiniMax-Text-01",
+            "abab6.5s-chat"
           ],
-          "description": "Claude model to use"
+          "enumDescriptions": [
+            "Claude Sonnet 4.5 (Anthropic)",
+            "Claude Opus 4.5 (Anthropic)",
+            "Claude Haiku 4.5 (Anthropic)",
+            "DeepSeek-V3 — fast and cheap",
+            "DeepSeek-R1 — reasoning model",
+            "MiniMax Text-01 — 1M context",
+            "MiniMax abab6.5s — fast and cheap"
+          ],
+          "description": "Model to use"
         }
       }
     }

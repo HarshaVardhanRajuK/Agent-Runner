@@ -1,1 +1,4 @@
 export { AnthropicProvider } from './anthropic.js'
+export { OpenAICompatibleProvider } from './openai-compatible.js'
+export { DeepSeekProvider } from './deepseek.js'
+export { MiniMaxProvider } from './minimax.js'

@@ -15,6 +15,10 @@ const MODEL_LIMITS: Record<string, number> = {
   'claude-haiku-4-5': 200_000,
   'gemini-2.0-flash': 1_000_000,
   'gemini-1.5-flash': 1_000_000,
+  'deepseek-chat': 64_000,
+  'deepseek-reasoner': 64_000,
+  'MiniMax-Text-01': 1_000_000,
+  'abab6.5s-chat': 245_760,
 }
 
 export class TokenBudget {

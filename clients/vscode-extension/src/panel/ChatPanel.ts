@@ -1,6 +1,6 @@
 import * as vscode from 'vscode'
 import { run, SessionManager } from '@agent-runner/runtime'
-import { AnthropicProvider } from '@agent-runner/providers'
+import { AnthropicProvider, DeepSeekProvider, MiniMaxProvider } from '@agent-runner/providers'
 import { createDefaultRegistry } from '@agent-runner/tools'
 import { initStore, SessionStore } from '@agent-runner/storage'
 import { VsCodeAdapter } from '../adapter/VsCodeAdapter.js'
@@ -138,21 +138,11 @@ export class ChatPanel {
     }
 
     const config = vscode.workspace.getConfiguration('agent-runner')
-    const apiKey = config.get<string>('anthropicApiKey') ?? ''
     const model = config.get<string>('model') ?? 'claude-sonnet-4-5'
 
-    if (!apiKey) {
-      log.warn('runTask: API key not configured')
-      this.#send({
-        type: 'error',
-        message:
-          'Anthropic API key not set. Add it in Settings → Agent Runner → Anthropic Api Key.',
-      })
-      return
-    }
-
     log.info(`Starting task with model=${model}`)
-    const provider = new AnthropicProvider(apiKey, model, SYSTEM_PROMPT)
+    const provider = resolveProvider(config, model)
+    if (!provider) return
     const adapter = new VsCodeAdapter()
     const tools = createDefaultRegistry(adapter, workspaceRoot)
 
@@ -235,6 +225,40 @@ export class ChatPanel {
 </body>
 </html>`
   }
+}
+
+const DEEPSEEK_MODELS = new Set(['deepseek-chat', 'deepseek-reasoner'])
+const MINIMAX_MODELS = new Set(['MiniMax-Text-01', 'abab6.5s-chat'])
+
+function resolveProvider(
+  config: vscode.WorkspaceConfiguration,
+  model: string,
+): import('@agent-runner/providers').AnthropicProvider | DeepSeekProvider | MiniMaxProvider | null {
+  if (DEEPSEEK_MODELS.has(model)) {
+    const apiKey = config.get<string>('deepseekApiKey') ?? ''
+    if (!apiKey) {
+      vscode.commands.executeCommand('workbench.action.openSettings', 'agent-runner.deepseekApiKey')
+      return null
+    }
+    return new DeepSeekProvider(apiKey, model, SYSTEM_PROMPT)
+  }
+
+  if (MINIMAX_MODELS.has(model)) {
+    const apiKey = config.get<string>('minimaxApiKey') ?? ''
+    if (!apiKey) {
+      vscode.commands.executeCommand('workbench.action.openSettings', 'agent-runner.minimaxApiKey')
+      return null
+    }
+    return new MiniMaxProvider(apiKey, model, SYSTEM_PROMPT)
+  }
+
+  // Default: Claude / Anthropic
+  const apiKey = config.get<string>('anthropicApiKey') ?? ''
+  if (!apiKey) {
+    vscode.commands.executeCommand('workbench.action.openSettings', 'agent-runner.anthropicApiKey')
+    return null
+  }
+  return new AnthropicProvider(apiKey, model, SYSTEM_PROMPT)
 }
 
 function getNonce(): string {

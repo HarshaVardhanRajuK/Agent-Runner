@@ -25,3 +25,5 @@ out/
 # Editor
 .vscode/settings.json
 .idea/
+
+docs
