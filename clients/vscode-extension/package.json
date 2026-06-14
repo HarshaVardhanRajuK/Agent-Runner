@@ -61,9 +61,10 @@
   },
   "scripts": {
     "build": "node scripts/build-extension.mjs && node scripts/build-webview.mjs",
+    "build:prod": "NODE_ENV=production node scripts/build-extension.mjs && NODE_ENV=production node scripts/build-webview.mjs",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist out *.tsbuildinfo",
-    "package": "vsce package --no-dependencies"
+    "package": "NODE_ENV=production node scripts/build-extension.mjs && NODE_ENV=production node scripts/build-webview.mjs && vsce package --no-dependencies"
   },
   "dependencies": {
     "@agent-runner/context": "workspace:*",

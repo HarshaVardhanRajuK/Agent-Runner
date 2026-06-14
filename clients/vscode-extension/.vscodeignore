@@ -1,0 +1,25 @@
+# Source — not needed, only dist/ is shipped
+src/**
+tsconfig.json
+tsconfig.webview.json
+tsconfig.*.json
+
+# Dev artifacts
+node_modules/**
+dist/**/*.d.ts
+dist/**/*.map
+
+# Build scripts — not needed at runtime
+scripts/**
+
+# Monorepo — only the extension client is needed
+../../packages/**
+../../pnpm-*.yaml
+../../turbo.json
+../../tsconfig.base.json
+../../package.json
+
+# Editor/OS
+.gitignore
+.prettierrc
+.npmrc

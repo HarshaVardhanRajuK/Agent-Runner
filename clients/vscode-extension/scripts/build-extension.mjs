@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
+const isProd = process.env.NODE_ENV === 'production'
 
 await build({
   entryPoints: [join(root, 'src/extension.ts')],
@@ -14,8 +15,9 @@ await build({
   target: 'node20',
   // vscode is injected by the extension host at runtime — never on disk
   external: ['vscode'],
-  minify: process.env['NODE_ENV'] === 'production',
-  sourcemap: process.env['NODE_ENV'] !== 'production',
+  minify: isProd,
+  sourcemap: !isProd,
+  define: isProd ? { 'process.env.NODE_ENV': '"production"' } : undefined,
 })
 
-console.log('Extension bundled → dist/extension.js')
+console.log(`Extension bundled → dist/extension.js${isProd ? ' (minified)' : ''}`)

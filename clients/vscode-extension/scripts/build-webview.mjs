@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
+const isProd = process.env.NODE_ENV === 'production'
 
 await build({
   entryPoints: [join(root, 'src/webview/main.tsx')],
@@ -16,9 +17,9 @@ await build({
   platform: 'browser',
   target: 'es2022',
   jsx: 'automatic',
-  minify: process.env['NODE_ENV'] === 'production',
-  sourcemap: process.env['NODE_ENV'] !== 'production',
-  external: [],
+  minify: isProd,
+  sourcemap: !isProd,
+  define: isProd ? { 'process.env.NODE_ENV': '"production"' } : undefined,
 })
 
-console.log('Webview bundled → dist/webview/index.js')
+console.log(`Webview bundled → dist/webview/index.js${isProd ? ' (minified)' : ''}`)
