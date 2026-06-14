@@ -17,6 +17,24 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agent-runner-sidebar",
+          "title": "Agent Runner",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agent-runner-sidebar": [
+        {
+          "type": "webview",
+          "id": "agent-runner.sidebar",
+          "name": "Agent Runner"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "agent-runner.openChat",
@@ -24,54 +42,21 @@
       },
       {
         "command": "agent-runner.newSession",
-        "title": "Agent Runner: New Session"
+        "title": "Agent Runner: New Session",
+        "icon": "$(add)"
       }
     ],
-    "configuration": {
-      "title": "Agent Runner",
-      "properties": {
-        "agent-runner.anthropicApiKey": {
-          "type": "string",
-          "default": "",
-          "description": "Anthropic API key for Claude models",
-          "markdownDescription": "Your Anthropic API key. Get one at https://console.anthropic.com"
-        },
-        "agent-runner.deepseekApiKey": {
-          "type": "string",
-          "default": "",
-          "description": "DeepSeek API key",
-          "markdownDescription": "Your DeepSeek API key. Get one at https://platform.deepseek.com"
-        },
-        "agent-runner.minimaxApiKey": {
-          "type": "string",
-          "default": "",
-          "description": "MiniMax API key",
-          "markdownDescription": "Your MiniMax API key. Get one at https://platform.minimaxi.com"
-        },
-        "agent-runner.model": {
-          "type": "string",
-          "default": "claude-sonnet-4-5",
-          "enum": [
-            "claude-sonnet-4-5",
-            "claude-opus-4-5",
-            "claude-haiku-4-5",
-            "deepseek-chat",
-            "deepseek-reasoner",
-            "MiniMax-Text-01",
-            "abab6.5s-chat"
-          ],
-          "enumDescriptions": [
-            "Claude Sonnet 4.5 (Anthropic)",
-            "Claude Opus 4.5 (Anthropic)",
-            "Claude Haiku 4.5 (Anthropic)",
-            "DeepSeek-V3 — fast and cheap",
-            "DeepSeek-R1 — reasoning model",
-            "MiniMax Text-01 — 1M context",
-            "MiniMax abab6.5s — fast and cheap"
-          ],
-          "description": "Model to use"
+    "menus": {
+      "view/title": [
+        {
+          "command": "agent-runner.newSession",
+          "when": "view == agent-runner.sidebar",
+          "group": "navigation"
         }
-      }
+      ]
+    },
+    "configuration": {
+      "title": "Agent Runner"
     }
   },
   "scripts": {
@@ -86,10 +71,14 @@
     "@agent-runner/runtime": "workspace:*",
     "@agent-runner/shared": "workspace:*",
     "@agent-runner/storage": "workspace:*",
-    "@agent-runner/tools": "workspace:*"
+    "@agent-runner/tools": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "@types/vscode": "^1.95.0",
     "esbuild": "^0.28.0",
     "typescript": "*"

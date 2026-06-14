@@ -1,32 +1,40 @@
 import * as vscode from 'vscode'
-import { ChatPanel } from './panel/ChatPanel.js'
+import { SidebarViewProvider } from './panel/SidebarViewProvider.js'
+import { ConfigService } from './services/ConfigService.js'
 import { log } from './log.js'
 
 export function activate(context: vscode.ExtensionContext): void {
   log.info('Activating Agent Runner extension...')
 
   try {
+    const config = new ConfigService(context)
+
+    // Run migration from legacy settings.json keys on first launch
+    void config.migrateFromSettings()
+
+    const provider = new SidebarViewProvider(context, config)
+
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        SidebarViewProvider.viewType,
+        provider,
+        { webviewOptions: { retainContextWhenHidden: true } },
+      ),
+    )
+
     context.subscriptions.push(
       vscode.commands.registerCommand('agent-runner.openChat', () => {
         log.info('Command: agent-runner.openChat')
-        ChatPanel.createOrShow(context)
+        void vscode.commands.executeCommand('agent-runner.sidebar.focus')
       }),
     )
 
     context.subscriptions.push(
       vscode.commands.registerCommand('agent-runner.newSession', () => {
         log.info('Command: agent-runner.newSession')
-        ChatPanel.createOrShow(context, { newSession: true })
+        provider.resetSession()
       }),
     )
-
-    log.info('Registered 2 commands')
-
-    if (context.globalState.get('firstActivation') !== false) {
-      log.info('First activation detected — opening chat panel')
-      void context.globalState.update('firstActivation', false)
-      ChatPanel.createOrShow(context)
-    }
 
     log.info('Agent Runner extension activated successfully')
   } catch (err) {
@@ -36,6 +44,4 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
   log.info('Deactivating Agent Runner extension')
-  ChatPanel.dispose()
-  log.info('Agent Runner extension deactivated')
 }

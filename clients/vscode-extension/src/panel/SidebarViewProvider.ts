@@ -3,92 +3,48 @@ import { run, SessionManager } from '@agent-runner/runtime'
 import { AnthropicProvider, DeepSeekProvider, MiniMaxProvider } from '@agent-runner/providers'
 import { createDefaultRegistry } from '@agent-runner/tools'
 import { initStore, SessionStore } from '@agent-runner/storage'
+import { providerForModel } from '@agent-runner/shared'
 import { VsCodeAdapter } from '../adapter/VsCodeAdapter.js'
 import { log } from '../log.js'
+import { ConfigService } from '../services/ConfigService.js'
 import type { WebviewMessage, ExtensionMessage } from '@agent-runner/shared'
 
-interface CreateOptions {
-  newSession?: boolean
-}
+export class SidebarViewProvider implements vscode.WebviewViewProvider {
+  static readonly viewType = 'agent-runner.sidebar'
 
-/**
- * ChatPanel — manages the VS Code WebviewPanel for the agent chat UI.
- *
- * Responsibilities:
- * - Create/show the webview panel
- * - Bridge messages between webview and the runtime
- * - Construct RuntimeConfig (provider, tools, session)
- */
-export class ChatPanel {
-  static #current: ChatPanel | undefined
-  readonly #panel: vscode.WebviewPanel
+  #view: vscode.WebviewView | undefined
   readonly #context: vscode.ExtensionContext
+  readonly #config: ConfigService
   #sessionManager: SessionManager | undefined
   #isRunning = false
 
-  private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
-    this.#panel = panel
+  constructor(context: vscode.ExtensionContext, config: ConfigService) {
     this.#context = context
+    this.#config = config
+  }
 
-    this.#panel.onDidDispose(() => {
-      log.info('ChatPanel webview disposed')
-      ChatPanel.#current = undefined
-    })
+  resolveWebviewView(view: vscode.WebviewView): void {
+    this.#view = view
 
-    this.#panel.webview.onDidReceiveMessage((msg: WebviewMessage) => {
+    view.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(this.#context.extensionUri, 'dist', 'webview'),
+        vscode.Uri.joinPath(this.#context.extensionUri, 'media'),
+      ],
+    }
+
+    view.webview.html = this.#getHtml(view.webview)
+
+    view.webview.onDidReceiveMessage((msg: WebviewMessage) => {
       log.info(`Received webview message: ${msg.type}`)
       void this.#handleWebviewMessage(msg)
     })
 
-    this.#panel.webview.html = this.#getHtml()
-    log.info('ChatPanel constructed')
+    log.info('SidebarViewProvider resolved')
   }
 
-  static createOrShow(
-    context: vscode.ExtensionContext,
-    options: CreateOptions = {},
-  ): void {
-    const column = vscode.window.activeTextEditor
-      ? vscode.window.activeTextEditor.viewColumn
-      : undefined
-
-    if (ChatPanel.#current) {
-      log.info('Revealing existing ChatPanel')
-      ChatPanel.#current.#panel.reveal(column)
-      if (options.newSession) {
-        ChatPanel.#current.#resetSession()
-      }
-      return
-    }
-
-    log.info('Creating new ChatPanel webview')
-    const panel = vscode.window.createWebviewPanel(
-      'agentRunnerChat',
-      'Agent Runner',
-      column ?? vscode.ViewColumn.Two,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [
-          vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview'),
-        ],
-      },
-    )
-
-    ChatPanel.#current = new ChatPanel(panel, context)
-
-    if (options.newSession) {
-      ChatPanel.#current.#resetSession()
-    }
-  }
-
-  static dispose(): void {
-    const current = ChatPanel.#current
-    if (current) current.#panel.dispose()
-    ChatPanel.#current = undefined
-  }
-
-  #resetSession(): void {
+  resetSession(): void {
     const workspaceRoot = this.#getWorkspaceRoot()
     if (!workspaceRoot) {
       log.warn('resetSession: no workspace root')
@@ -109,13 +65,38 @@ export class ChatPanel {
         log.warn('handleWebviewMessage(ready): no workspace root')
         return
       }
-
-      log.info(`Webview ready — loading session for ${workspaceRoot}`)
       const sm = new SessionManager(store)
       const session = sm.loadOrCreate(workspaceRoot)
       this.#sessionManager = sm
       this.#send({ type: 'session_loaded', taskCount: session.totalTasks })
       log.info(`Session loaded with ${session.totalTasks} existing task(s)`)
+      return
+    }
+
+    if (msg.type === 'get_settings') {
+      const settings = await this.#config.getSettingsState()
+      this.#send({ type: 'settings', settings })
+      return
+    }
+
+    if (msg.type === 'set_api_key') {
+      const provider = msg.provider
+      const catalog = await import('@agent-runner/shared').then((m) => m.PROVIDER_CATALOG)
+      const entry = catalog.find((p) => p.id === provider)
+      if (entry) {
+        await this.#config.setApiKey(entry.secretKey, msg.key)
+        log.info(`API key ${msg.key ? 'set' : 'cleared'} for ${provider}`)
+      }
+      const settings = await this.#config.getSettingsState()
+      this.#send({ type: 'settings', settings })
+      return
+    }
+
+    if (msg.type === 'set_model') {
+      await this.#config.setModel(msg.model)
+      log.info(`Model set to ${msg.model}`)
+      const settings = await this.#config.getSettingsState()
+      this.#send({ type: 'settings', settings })
       return
     }
 
@@ -137,12 +118,12 @@ export class ChatPanel {
       return
     }
 
-    const config = vscode.workspace.getConfiguration('agent-runner')
-    const model = config.get<string>('model') ?? 'claude-sonnet-4-5'
-
+    const model = this.#config.getModel()
     log.info(`Starting task with model=${model}`)
-    const provider = resolveProvider(config, model)
+
+    const provider = await this.#resolveProvider(model)
     if (!provider) return
+
     const adapter = new VsCodeAdapter()
     const tools = createDefaultRegistry(adapter, workspaceRoot)
 
@@ -175,8 +156,36 @@ export class ChatPanel {
     }
   }
 
+  async #resolveProvider(
+    model: string,
+  ): Promise<AnthropicProvider | DeepSeekProvider | MiniMaxProvider | null> {
+    const providerInfo = providerForModel(model)
+    if (!providerInfo) {
+      this.#send({ type: 'error', message: `Unknown model: ${model}` })
+      return null
+    }
+
+    const apiKey = await this.#config.getApiKey(providerInfo.secretKey)
+    if (!apiKey) {
+      this.#send({
+        type: 'error',
+        message: `No API key set for ${providerInfo.label}. Please configure it in Settings.`,
+      })
+      this.#send({ type: 'navigate', view: 'settings' })
+      return null
+    }
+
+    if (providerInfo.id === 'deepseek') {
+      return new DeepSeekProvider(apiKey, model, SYSTEM_PROMPT)
+    }
+    if (providerInfo.id === 'minimax') {
+      return new MiniMaxProvider(apiKey, model, SYSTEM_PROMPT)
+    }
+    return new AnthropicProvider(apiKey, model, SYSTEM_PROMPT)
+  }
+
   #send(msg: ExtensionMessage): void {
-    void this.#panel.webview.postMessage(msg)
+    void this.#view?.webview.postMessage(msg)
   }
 
   #getWorkspaceRoot(): string | undefined {
@@ -189,8 +198,8 @@ export class ChatPanel {
     return new SessionStore()
   }
 
-  #getHtml(): string {
-    const webviewUri = this.#panel.webview.asWebviewUri(
+  #getHtml(webview: vscode.Webview): string {
+    const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.#context.extensionUri, 'dist', 'webview', 'index.js'),
     )
     const nonce = getNonce()
@@ -203,7 +212,8 @@ export class ChatPanel {
     content="default-src 'none';
              script-src 'nonce-${nonce}';
              style-src 'unsafe-inline';
-             font-src ${this.#panel.webview.cspSource};" />
+             img-src ${webview.cspSource} https:;
+             font-src ${webview.cspSource};" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Agent Runner</title>
   <style>
@@ -216,49 +226,16 @@ export class ChatPanel {
       height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
   </style>
 </head>
 <body>
   <div id="root"></div>
-  <script nonce="${nonce}" src="${webviewUri}"></script>
+  <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`
   }
-}
-
-const DEEPSEEK_MODELS = new Set(['deepseek-chat', 'deepseek-reasoner'])
-const MINIMAX_MODELS = new Set(['MiniMax-Text-01', 'abab6.5s-chat'])
-
-function resolveProvider(
-  config: vscode.WorkspaceConfiguration,
-  model: string,
-): import('@agent-runner/providers').AnthropicProvider | DeepSeekProvider | MiniMaxProvider | null {
-  if (DEEPSEEK_MODELS.has(model)) {
-    const apiKey = config.get<string>('deepseekApiKey') ?? ''
-    if (!apiKey) {
-      vscode.commands.executeCommand('workbench.action.openSettings', 'agent-runner.deepseekApiKey')
-      return null
-    }
-    return new DeepSeekProvider(apiKey, model, SYSTEM_PROMPT)
-  }
-
-  if (MINIMAX_MODELS.has(model)) {
-    const apiKey = config.get<string>('minimaxApiKey') ?? ''
-    if (!apiKey) {
-      vscode.commands.executeCommand('workbench.action.openSettings', 'agent-runner.minimaxApiKey')
-      return null
-    }
-    return new MiniMaxProvider(apiKey, model, SYSTEM_PROMPT)
-  }
-
-  // Default: Claude / Anthropic
-  const apiKey = config.get<string>('anthropicApiKey') ?? ''
-  if (!apiKey) {
-    vscode.commands.executeCommand('workbench.action.openSettings', 'agent-runner.anthropicApiKey')
-    return null
-  }
-  return new AnthropicProvider(apiKey, model, SYSTEM_PROMPT)
 }
 
 function getNonce(): string {

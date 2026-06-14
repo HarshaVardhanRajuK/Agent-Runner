@@ -1,6 +1,5 @@
 /**
- * Bundles the webview TypeScript into a single dist/webview/index.js
- * using esbuild. Runs after tsc as part of the build script.
+ * Bundles the React webview into a single dist/webview/index.js using esbuild.
  */
 import { build } from 'esbuild'
 import { fileURLToPath } from 'node:url'
@@ -10,12 +9,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 
 await build({
-  entryPoints: [join(root, 'src/webview/index.ts')],
+  entryPoints: [join(root, 'src/webview/main.tsx')],
   bundle: true,
   outfile: join(root, 'dist/webview/index.js'),
   format: 'iife',
   platform: 'browser',
   target: 'es2022',
+  jsx: 'automatic',
   minify: process.env['NODE_ENV'] === 'production',
   sourcemap: process.env['NODE_ENV'] !== 'production',
   external: [],
