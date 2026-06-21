@@ -1,4 +1,5 @@
-import type { ToolSchema, ToolResult, PlatformAdapter } from '@agent-runner/shared'
+import type { ToolSchema, ToolResult, PlatformAdapter, Logger } from '@agent-runner/shared'
+import { silentLogger } from '@agent-runner/shared'
 
 type ToolExecutor = (
   input: Record<string, unknown>,
@@ -12,17 +13,15 @@ interface ToolEntry {
 
 /**
  * ToolRegistry — holds all tools available to the agent.
- *
- * The runtime calls:
- *   registry.schemas()              → pass to LLM with each request
- *   registry.execute(name, input)   → run when LLM requests a tool
  */
 export class ToolRegistry {
   readonly #tools = new Map<string, ToolEntry>()
   readonly #adapter: PlatformAdapter
+  readonly #log: Logger
 
-  constructor(adapter: PlatformAdapter) {
+  constructor(adapter: PlatformAdapter, logger?: Logger) {
     this.#adapter = adapter
+    this.#log = logger ?? silentLogger
   }
 
   register(schema: ToolSchema, execute: ToolExecutor): this {
@@ -37,12 +36,17 @@ export class ToolRegistry {
   async execute(name: string, input: Record<string, unknown>): Promise<ToolResult> {
     const tool = this.#tools.get(name)
     if (!tool) {
+      this.#log.warn(`Unknown tool called: ${name}`)
       return { output: `Error: unknown tool '${name}'`, durationMs: 0 }
     }
     const start = Date.now()
+    this.#log.info(`Tool execute: ${name}`)
     try {
-      return await tool.execute(input, this.#adapter)
+      const result = await tool.execute(input, this.#adapter)
+      this.#log.debug(`Tool ${name} completed in ${Date.now() - start}ms`)
+      return result
     } catch (err) {
+      this.#log.error(`Tool ${name} failed`, err)
       return {
         output: `Error: ${String(err)}`,
         durationMs: Date.now() - start,

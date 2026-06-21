@@ -6,24 +6,29 @@ import type {
   Message,
   ToolSchema,
   AssistantContentBlock,
+  Logger,
 } from '@agent-runner/shared'
+import { silentLogger } from '@agent-runner/shared'
 
 export class AnthropicProvider implements ModelProvider {
   readonly model: string
   readonly #client: Anthropic
   readonly #systemPrompt: string
+  readonly #log: Logger
 
-  constructor(apiKey: string, model: string, systemPrompt: string) {
+  constructor(apiKey: string, model: string, systemPrompt: string, logger?: Logger) {
     this.model = model
     this.#client = new Anthropic({ apiKey })
     this.#systemPrompt = systemPrompt
+    this.#log = logger ?? silentLogger
   }
 
   stream(messages: Message[], tools: ToolSchema[]): StreamingResponse {
     const anthropicMessages = toAnthropicMessages(messages)
     const anthropicTools = toAnthropicTools(tools)
 
-    // Create the stream lazily — it starts when tokens() or complete() is called
+    this.#log.info(`Anthropic stream: model=${this.model}, messages=${messages.length}, tools=${tools.length}`)
+
     const streamPromise = this.#client.messages.stream({
       model: this.model,
       max_tokens: 8096,
@@ -48,6 +53,7 @@ export class AnthropicProvider implements ModelProvider {
       complete: async (): Promise<LLMMessage> => {
         const stream = await streamPromise
         const msg = await stream.finalMessage()
+        this.#log.info(`Anthropic response: stop=${msg.stop_reason}, blocks=${msg.content.length}`)
         return {
           role: 'assistant',
           content: toSharedContent(msg.content),

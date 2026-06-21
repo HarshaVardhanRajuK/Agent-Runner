@@ -125,7 +125,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (!provider) return
 
     const adapter = new VsCodeAdapter()
-    const tools = createDefaultRegistry(adapter, workspaceRoot)
+    const tools = createDefaultRegistry(adapter, workspaceRoot, log)
 
     if (!this.#sessionManager) {
       const store = this.#getSessionStore()
@@ -141,6 +141,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
         sessionManager: this.#sessionManager,
         provider,
         tools,
+        logger: log,
       })) {
         this.#send({ type: 'runtime_event', event })
       }
@@ -176,15 +177,15 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     }
 
     if (providerInfo.id === 'command-code') {
-      return new CommandCodeProvider(apiKey, model, SYSTEM_PROMPT)
+      return new CommandCodeProvider(apiKey, model, SYSTEM_PROMPT, log)
     }
     if (providerInfo.id === 'deepseek') {
-      return new DeepSeekProvider(apiKey, model, SYSTEM_PROMPT)
+      return new DeepSeekProvider(apiKey, model, SYSTEM_PROMPT, log)
     }
     if (providerInfo.id === 'minimax') {
-      return new MiniMaxProvider(apiKey, model, SYSTEM_PROMPT)
+      return new MiniMaxProvider(apiKey, model, SYSTEM_PROMPT, log)
     }
-    return new AnthropicProvider(apiKey, model, SYSTEM_PROMPT)
+    return new AnthropicProvider(apiKey, model, SYSTEM_PROMPT, log)
   }
 
   #send(msg: ExtensionMessage): void {

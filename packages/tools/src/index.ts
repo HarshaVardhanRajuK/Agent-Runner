@@ -4,7 +4,7 @@ export { writeFileSchema, writeFile } from './definitions/write-file.js'
 export { runCommandSchema, runCommand } from './definitions/run-command.js'
 export { listDirectorySchema, listDirectory } from './definitions/list-directory.js'
 
-import type { PlatformAdapter } from '@agent-runner/shared'
+import type { PlatformAdapter, Logger } from '@agent-runner/shared'
 import { ToolRegistry } from './registry.js'
 import { readFileSchema, readFile } from './definitions/read-file.js'
 import { writeFileSchema, writeFile } from './definitions/write-file.js'
@@ -18,8 +18,9 @@ import { listDirectorySchema, listDirectory } from './definitions/list-directory
 export function createDefaultRegistry(
   adapter: PlatformAdapter,
   workspaceRoot: string,
+  logger?: Logger,
 ): ToolRegistry {
-  return new ToolRegistry(adapter)
+  return new ToolRegistry(adapter, logger)
     .register(readFileSchema, (input, adp) => readFile(input, adp))
     .register(writeFileSchema, (input, adp) => writeFile(input, adp))
     .register(runCommandSchema, (input, adp) => runCommand(input, adp, workspaceRoot))

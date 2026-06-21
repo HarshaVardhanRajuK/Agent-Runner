@@ -1,4 +1,5 @@
-import type { RuntimeEvent, ModelProvider, Message } from '@agent-runner/shared'
+import type { RuntimeEvent, ModelProvider, Message, Logger } from '@agent-runner/shared'
+import { silentLogger } from '@agent-runner/shared'
 import type { ToolRegistry } from '@agent-runner/tools'
 import { buildContext } from '@agent-runner/context'
 import type { SessionManager } from './session-manager.js'
@@ -8,6 +9,7 @@ export interface RunOptions {
   sessionManager: SessionManager
   provider: ModelProvider
   tools: ToolRegistry
+  logger?: Logger
   maxIterations?: number
 }
 
@@ -30,17 +32,24 @@ const DEFAULT_MAX_ITERATIONS = 30
 export async function* run(options: RunOptions): AsyncGenerator<RuntimeEvent> {
   const { task, sessionManager, provider, tools, maxIterations = DEFAULT_MAX_ITERATIONS } =
     options
+  const log = options.logger ?? silentLogger
 
   // Append this task to the session
   sessionManager.addMessage({ role: 'user', content: task })
   sessionManager.incrementTaskCount()
+  log.info(`Task started: "${task.slice(0, 80)}${task.length > 80 ? '…' : ''}"`)
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
+    log.info(`Iteration ${iteration + 1}/${maxIterations}`)
+
     // ── Build context (handles token budget + compression) ────────────────
     const { messages, budget, compressed } = buildContext(
       sessionManager.messages,
       provider.model,
+      log,
     )
+
+    log.debug(`Context: ${budget.used} tokens (${budget.pressure.toFixed(2)} pressure)${compressed ? ' — compressed' : ''}`)
 
     if (compressed) {
       yield {
@@ -51,6 +60,7 @@ export async function* run(options: RunOptions): AsyncGenerator<RuntimeEvent> {
     }
 
     // ── Stream LLM response ───────────────────────────────────────────────
+    log.info(`LLM request: model=${provider.model}, messages=${messages.length}, tools=${tools.schemas().length}`)
     const streaming = provider.stream(messages, tools.schemas())
 
     for await (const token of streaming.tokens()) {
@@ -58,6 +68,8 @@ export async function* run(options: RunOptions): AsyncGenerator<RuntimeEvent> {
     }
 
     const llmMessage = await streaming.complete()
+    const contentBlocks = llmMessage.content.map((b) => b.type).join(', ')
+    log.info(`LLM response: stop=${llmMessage.stopReason}, blocks=[${contentBlocks}]`)
 
     // Append to session
     sessionManager.addMessage({
@@ -75,6 +87,7 @@ export async function* run(options: RunOptions): AsyncGenerator<RuntimeEvent> {
           .join('') || 'Task completed.'
 
       sessionManager.save()
+      log.info(`Task completed: "${summary.slice(0, 100)}${summary.length > 100 ? '…' : ''}"`)
       yield { type: 'task_completed', summary }
       return
     }
@@ -83,10 +96,12 @@ export async function* run(options: RunOptions): AsyncGenerator<RuntimeEvent> {
     for (const block of llmMessage.content) {
       if (block.type !== 'tool_use') continue
 
+      log.info(`Tool call: ${block.name}(${JSON.stringify(block.input)})`)
       yield { type: 'tool_started', name: block.name, input: block.input }
 
       const result = await tools.execute(block.name, block.input)
 
+      log.info(`Tool result: ${block.name} — ${result.output.slice(0, 100)}${result.output.length > 100 ? '…' : ''} (${result.durationMs}ms)`)
       yield {
         type: 'tool_completed',
         name: block.name,
@@ -107,6 +122,7 @@ export async function* run(options: RunOptions): AsyncGenerator<RuntimeEvent> {
 
   // ── Iteration cap ─────────────────────────────────────────────────────
   sessionManager.save()
+  log.error(`Reached maximum iterations (${maxIterations})`)
   yield {
     type: 'task_failed',
     error: `Reached maximum iterations (${maxIterations}). Task may be incomplete.`,

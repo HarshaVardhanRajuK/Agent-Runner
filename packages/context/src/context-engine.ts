@@ -1,4 +1,5 @@
-import type { Message } from '@agent-runner/shared'
+import type { Message, Logger } from '@agent-runner/shared'
+import { silentLogger } from '@agent-runner/shared'
 import { TokenBudget, estimateTokens, COMPRESSION_THRESHOLD } from './token-budget.js'
 import { compressHistory } from './compressor.js'
 
@@ -10,18 +11,18 @@ export interface ContextResult {
 
 /**
  * Build the messages array to send to the LLM for this iteration.
- *
- * v0.1: returns session history, compressing if token pressure is too high.
- * v0.2+: will inject retrieved codebase context before returning.
- * v0.3+: will inject memory (user preferences) into the system prompt prefix.
  */
-export function buildContext(messages: Message[], model: string): ContextResult {
+export function buildContext(messages: Message[], model: string, logger?: Logger): ContextResult {
+  const log = logger ?? silentLogger
   const budget = new TokenBudget(model)
   budget.used = estimateTokens(messages)
+  log.debug(`Context: ${messages.length} messages, ${budget.used} tokens (${budget.pressure.toFixed(2)} pressure)`)
 
   if (budget.pressure >= COMPRESSION_THRESHOLD) {
+    log.info(`Context compression triggered at ${(budget.pressure * 100).toFixed(0)}% pressure`)
     const compressed = compressHistory(messages)
     budget.used = estimateTokens(compressed)
+    log.info(`Context compressed: ${messages.length} → ${compressed.length} messages, ${budget.used} tokens`)
     return { messages: compressed, budget, compressed: true }
   }
 

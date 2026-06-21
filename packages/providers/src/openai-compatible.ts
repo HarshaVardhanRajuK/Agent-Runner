@@ -6,31 +6,37 @@ import type {
   Message,
   ToolSchema,
   AssistantContentBlock,
+  Logger,
 } from '@agent-runner/shared'
+import { silentLogger } from '@agent-runner/shared'
 
 interface OpenAICompatibleOptions {
   apiKey: string
   model: string
   baseURL: string
   systemPrompt: string
+  logger?: Logger
 }
 
 export class OpenAICompatibleProvider implements ModelProvider {
   readonly model: string
   readonly #client: OpenAI
   readonly #systemPrompt: string
+  readonly #log: Logger
 
   constructor(opts: OpenAICompatibleOptions) {
     this.model = opts.model
     this.#client = new OpenAI({ apiKey: opts.apiKey, baseURL: opts.baseURL })
     this.#systemPrompt = opts.systemPrompt
+    this.#log = opts.logger ?? silentLogger
   }
 
   stream(messages: Message[], tools: ToolSchema[]): StreamingResponse {
     const oaiMessages = toOAIMessages(this.#systemPrompt, messages)
     const oaiTools = tools.length > 0 ? toOAITools(tools) : undefined
 
-    // Shared mutable state — both tokens() and complete() consume the same stream
+    this.#log.info(`OpenAI stream: model=${this.model}, baseURL=${this.#client.baseURL}`)
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let streamRef: any = null
     const getStream = () => {
@@ -59,6 +65,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
       complete: async (): Promise<LLMMessage> => {
         const stream = getStream()
         const msg = await stream.finalMessage()
+        const usage = msg.usage
         return {
           role: 'assistant',
           content: toSharedContent(msg.choices[0]?.message),
