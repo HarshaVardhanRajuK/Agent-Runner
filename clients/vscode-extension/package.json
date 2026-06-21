@@ -73,6 +73,7 @@
     "@agent-runner/shared": "workspace:*",
     "@agent-runner/storage": "workspace:*",
     "@agent-runner/tools": "workspace:*",
+    "marked": "^15.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
