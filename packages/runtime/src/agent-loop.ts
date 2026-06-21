@@ -64,6 +64,7 @@ export async function* run(options: RunOptions): AsyncGenerator<RuntimeEvent> {
     const streaming = provider.stream(messages, tools.schemas())
 
     for await (const token of streaming.tokens()) {
+      log.info(`[token] ${token}`)
       yield { type: 'assistant_token', token }
     }
 

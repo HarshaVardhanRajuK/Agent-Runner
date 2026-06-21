@@ -4,17 +4,115 @@ import { postMessage, onMessage } from '../lib/vscodeApi.js'
 import type { Message } from '../components/MessageBubble.js'
 import type { RuntimeEvent } from '@agent-runner/shared'
 
+const TYPING_SPEED_MS = 12
+
 export function ChatView() {
   const [messages, setMessages] = useState<Message[]>([])
   const [isRunning, setIsRunning] = useState(false)
   const [inputText, setInputText] = useState('')
   const streamIndexRef = useRef(-1)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const charBufferRef = useRef<string[]>([])
+  const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  function flushBuffer() {
+    if (typingIntervalRef.current !== null) {
+      clearInterval(typingIntervalRef.current)
+      typingIntervalRef.current = null
+    }
+    const remaining = charBufferRef.current.join('')
+    charBufferRef.current = []
+    if (!remaining) return
+    setMessages((prev) => {
+      if (streamIndexRef.current === -1) {
+        streamIndexRef.current = prev.length
+        return [...prev, { role: 'assistant', content: remaining, isStreaming: true }]
+      }
+      const next = [...prev]
+      const msg = next[streamIndexRef.current]
+      if (msg) next[streamIndexRef.current] = { ...msg, content: msg.content + remaining }
+      return next
+    })
+  }
+
+  function startTyping() {
+    if (typingIntervalRef.current !== null) return
+    typingIntervalRef.current = setInterval(() => {
+      const char = charBufferRef.current.shift()
+      if (!char) return
+      setMessages((prev) => {
+        if (streamIndexRef.current === -1) {
+          streamIndexRef.current = prev.length
+          return [...prev, { role: 'assistant', content: char, isStreaming: true }]
+        }
+        const next = [...prev]
+        const msg = next[streamIndexRef.current]
+        if (msg) next[streamIndexRef.current] = { ...msg, content: msg.content + char }
+        return next
+      })
+    }, TYPING_SPEED_MS)
+  }
+
+  function finalizeStreamingMessage() {
+    setMessages((prev) => {
+      if (streamIndexRef.current === -1) return prev
+      const next = [...prev]
+      const msg = next[streamIndexRef.current]
+      if (msg) next[streamIndexRef.current] = { ...msg, isStreaming: false }
+      streamIndexRef.current = -1
+      return next
+    })
+  }
+
+  function handleRuntimeEvent(event: RuntimeEvent) {
+    switch (event.type) {
+      case 'assistant_token': {
+        for (const char of event.token) {
+          charBufferRef.current.push(char)
+        }
+        startTyping()
+        break
+      }
+      case 'tool_started': {
+        flushBuffer()
+        finalizeStreamingMessage()
+        break
+      }
+      case 'tool_completed': {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'tool', content: event.result, toolName: event.name, durationMs: event.durationMs },
+        ])
+        break
+      }
+      case 'task_completed': {
+        flushBuffer()
+        finalizeStreamingMessage()
+        setIsRunning(false)
+        break
+      }
+      case 'task_failed': {
+        flushBuffer()
+        setMessages((prev) => [...prev, { role: 'assistant', content: `⚠️ ${event.error}` }])
+        setIsRunning(false)
+        streamIndexRef.current = -1
+        break
+      }
+      default:
+        break
+    }
+  }
 
   useEffect(() => {
     return onMessage((msg) => {
-      if (msg.type === 'session_loaded') return
+      if (msg.type === 'session_loaded') {
+        flushBuffer()
+        setMessages([])
+        streamIndexRef.current = -1
+        return
+      }
       if (msg.type === 'error') {
+        flushBuffer()
         setMessages((prev) => [...prev, { role: 'assistant', content: `⚠️ ${msg.message}` }])
         setIsRunning(false)
         streamIndexRef.current = -1
@@ -30,65 +128,13 @@ export function ChatView() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  function handleRuntimeEvent(event: RuntimeEvent) {
-    switch (event.type) {
-      case 'assistant_token': {
-        setMessages((prev) => {
-          if (streamIndexRef.current === -1) {
-            streamIndexRef.current = prev.length
-            return [...prev, { role: 'assistant', content: event.token, isStreaming: true }]
-          }
-          const next = [...prev]
-          const msg = next[streamIndexRef.current]
-          if (msg) next[streamIndexRef.current] = { ...msg, content: msg.content + event.token }
-          return next
-        })
-        break
+  useEffect(() => {
+    return () => {
+      if (typingIntervalRef.current !== null) {
+        clearInterval(typingIntervalRef.current)
       }
-      case 'tool_started': {
-        setMessages((prev) => {
-          if (streamIndexRef.current !== -1) {
-            const next = [...prev]
-            const msg = next[streamIndexRef.current]
-            if (msg) next[streamIndexRef.current] = { ...msg, isStreaming: false }
-            streamIndexRef.current = -1
-            return next
-          }
-          return prev
-        })
-        break
-      }
-      case 'tool_completed': {
-        setMessages((prev) => [
-          ...prev,
-          { role: 'tool', content: event.result, toolName: event.name, durationMs: event.durationMs },
-        ])
-        break
-      }
-      case 'task_completed': {
-        setMessages((prev) => {
-          if (streamIndexRef.current !== -1) {
-            const next = [...prev]
-            const msg = next[streamIndexRef.current]
-            if (msg) next[streamIndexRef.current] = { ...msg, isStreaming: false }
-            streamIndexRef.current = -1
-            return next
-          }
-          return prev
-        })
-        setIsRunning(false)
-        break
-      }
-      case 'task_failed': {
-        setMessages((prev) => [...prev, { role: 'assistant', content: `⚠️ ${event.error}` }])
-        setIsRunning(false)
-        streamIndexRef.current = -1
-        break
-      }
-      default:
-        break
     }
-  }
+  }, [])
 
   const sendMessage = useCallback(() => {
     const text = inputText.trim()
