@@ -1,6 +1,6 @@
 import * as vscode from 'vscode'
 import { run, SessionManager } from '@agent-runner/runtime'
-import { AnthropicProvider, DeepSeekProvider, MiniMaxProvider } from '@agent-runner/providers'
+import { AnthropicProvider, DeepSeekProvider, MiniMaxProvider, CommandCodeProvider } from '@agent-runner/providers'
 import { createDefaultRegistry } from '@agent-runner/tools'
 import { initStore, SessionStore } from '@agent-runner/storage'
 import { providerForModel } from '@agent-runner/shared'
@@ -158,7 +158,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   async #resolveProvider(
     model: string,
-  ): Promise<AnthropicProvider | DeepSeekProvider | MiniMaxProvider | null> {
+  ): Promise<AnthropicProvider | DeepSeekProvider | MiniMaxProvider | CommandCodeProvider | null> {
     const providerInfo = providerForModel(model)
     if (!providerInfo) {
       this.#send({ type: 'error', message: `Unknown model: ${model}` })
@@ -175,6 +175,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       return null
     }
 
+    if (providerInfo.id === 'command-code') {
+      return new CommandCodeProvider(apiKey, model, SYSTEM_PROMPT)
+    }
     if (providerInfo.id === 'deepseek') {
       return new DeepSeekProvider(apiKey, model, SYSTEM_PROMPT)
     }

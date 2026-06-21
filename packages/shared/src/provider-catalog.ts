@@ -4,7 +4,7 @@ export interface ModelInfo {
 }
 
 export interface ProviderInfo {
-  id: 'anthropic' | 'deepseek' | 'minimax'
+  id: 'anthropic' | 'deepseek' | 'minimax' | 'command-code'
   label: string
   secretKey: string
   models: ModelInfo[]
@@ -38,6 +38,15 @@ export const PROVIDER_CATALOG: ProviderInfo[] = [
     models: [
       { id: 'MiniMax-M3', label: 'MiniMax M3' },
       { id: 'MiniMax-M2.7', label: 'MiniMax M2.7' },
+    ],
+  },
+  {
+    id: 'command-code',
+    label: 'Command Code',
+    secretKey: 'agent-runner.commandCodeApiKey',
+    models: [
+      { id: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash (via Command Code)' },
+      { id: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro (via Command Code)' },
     ],
   },
 ]
